@@ -1,12 +1,21 @@
 package tom.myrecyclerrefreshlayout;
 
+import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
+import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
 
 import com.dinuscxj.refresh.RecyclerRefreshLayout;
 
+import tom.myrecyclerrefreshlayout.adapter.HeaderViewRecyclerAdapter;
 import tom.myrecyclerrefreshlayout.adapter.RecyclerListAdapter;
 import tom.myrecyclerrefreshlayout.model.CursorModel;
+import tom.myrecyclerrefreshlayout.tips.DefaultTipsHelper;
 import tom.myrecyclerrefreshlayout.tips.TipsHelper;
 
 /**
@@ -20,12 +29,103 @@ public abstract class RecyclerFragment<MODEL extends CursorModel> extends Fragme
     private RecyclerRefreshLayout mRecyclerRefreshLayout;
 
     private TipsHelper mTipsHelper;
-//    private HeaderViewRecyclerAdapter mHeaderAdapter;
+    private HeaderViewRecyclerAdapter mHeaderAdapter;
     private RecyclerListAdapter<MODEL, ?> mOriginAdapter;
 
     private InteractionListener mInteractionListener;
 
-    
+    private final RefreshEventDetector mRefreshEventDetector = new RefreshEventDetector();
+    private final AutoLoadEventDetector mAutoLoadEventDetector = new AutoLoadEventDetector();
+
+    @Nullable
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.base_refresh_recycler_list_layout, container, false);
+    }
+
+    @Override
+    public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        initRecyclerView(view);
+        initRecyclerRefreshLayout(view);
+
+        mInteractionListener = createInteraction();
+        mTipsHelper = createTipsHelper();
+
+        refresh();
+    }
+
+    private void initRecyclerView(View view) {
+        mRecyclerView = (RecyclerView) view.findViewById(R.id.recycler_view);
+
+        mRecyclerView.addOnScrollListener(mAutoLoadEventDetector);
+
+        RecyclerView.LayoutManager layoutManager = onCreateLayoutManager();
+        if (layoutManager != null) {
+            mRecyclerView.setLayoutManager(layoutManager);
+        }
+
+        mOriginAdapter = createAdapter();
+        mHeaderAdapter = new HeaderViewRecyclerAdapter(mOriginAdapter);
+        mRecyclerView.setAdapter(mHeaderAdapter);
+        mHeaderAdapter.adjustSpanSize(mRecyclerView);
+    }
+
+    private void initRecyclerRefreshLayout(View view) {
+        mRecyclerRefreshLayout = (RecyclerRefreshLayout) view.findViewById(R.id.refresh_layout);
+
+        if (mRecyclerRefreshLayout == null) {
+            return;
+        }
+
+        if (allowPullToRefresh()) {
+            mRecyclerRefreshLayout.setNestedScrollingEnabled(true);
+            mRecyclerRefreshLayout.setOnRefreshListener(mRefreshEventDetector);
+        } else {
+            mRecyclerRefreshLayout.setEnabled(false);
+        }
+    }
+
+    @NonNull
+    public abstract RecyclerListAdapter createAdapter();
+
+    protected RecyclerView.LayoutManager onCreateLayoutManager() {
+        return new LinearLayoutManager(getActivity());
+    }
+
+    protected TipsHelper createTipsHelper() {
+        return new DefaultTipsHelper(this);
+    }
+
+    protected InteractionListener createInteraction() {
+        return null;
+    }
+
+    @Override
+    public void onDestroyView() {
+        mRecyclerView.removeOnScrollListener(mAutoLoadEventDetector);
+        super.onDestroyView();
+    }
+
+    public HeaderViewRecyclerAdapter getHeaderAdapter() {
+        return mHeaderAdapter;
+    }
+
+    public RecyclerListAdapter<MODEL, ?> getOriginAdapter() {
+        return mOriginAdapter;
+    }
+
+    public RecyclerRefreshLayout getRecyclerRefreshLayout() {
+        return mRecyclerRefreshLayout;
+    }
+
+    public RecyclerView getRecyclerView() {
+        return mRecyclerView;
+    }
+
+    public boolean allowPullToRefresh() {
+        return true;
+    }
 
     public void refresh() {
         if (isFirstPage()) {
